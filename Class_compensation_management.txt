@@ -1,0 +1,482 @@
+class YCL_SD_WLF definition
+  public
+  final
+  create public .
+
+public section.
+
+*    BEGIN OF ty_cond,
+*          kschl TYPE kschl,
+*          coco_num TYPE WCB_COCO_NUM,
+*          matnr TYPE matnr,
+*          maktx TYPE maktx,
+*          lifnr TYPE lifnr,
+*          /fis/wglif TYPE WGLIF,
+*          datbi TYPE datbi,
+*          datab TYPE datab,
+*           knumh TYPE knumh,
+*             kbetr    TYPE konp-kbetr,
+*             konwa    TYPE konp-konwa,
+*             krech    TYPE konp-krech,
+*             loevm_ko TYPE konp-loevm_ko,
+*             kpein    TYPE konp-kpein,
+*             kmein    TYPE konp-kmein,
+*      END OF ty_cond .
+  types:
+    BEGIN OF ty_konh,
+                 knumh TYPE knumh,
+              END OF ty_konh .
+  types:
+    BEGIN OF ty_konp,
+                 knumh    TYPE konp-knumh,
+                 kbetr    TYPE konp-kbetr,
+                 konwa    TYPE konp-konwa,
+                 krech    TYPE konp-krech,
+                 loevm_ko TYPE konp-loevm_ko,
+                 kpein    TYPE konp-kpein,
+                 kmein    TYPE konp-kmein,
+              END OF ty_konp .
+  types:
+    tty_konp TYPE TABLE OF ty_konp .
+  types:
+* Objektkey Nachrichten für Agenturgeschäft Kopf (Appl. WR)
+    BEGIN OF typ_objky_agbu_wr_head,
+             wbeln      TYPE wbrk-wbeln,   "Agenturbelegnummer           10
+             wdtyp      TYPE wbrk-wdtyp,   "Dokumenttyp                   1
+             filler(19) TYPE c,            "nicht benutzt                19
+           END OF typ_objky_agbu_wr_head .
+  types:
+* Objektkey Nachrichten für Agenturgeschäft Position (App. WR)
+    BEGIN OF typ_objky_agbu_wr_item,
+             wbeln      TYPE wbrk-wbeln,   "Agenturbelegnummer          10
+             wdtyp      TYPE wbrk-wdtyp,   "Dokumenttyp                  1
+             posnr     TYPE wbrl-posnr,   "Positionsnummer              6
+             wbeln_lf   TYPE wbrl-wbeln_lf,"Belegnummer des Pos-Beleges 10
+             filler(3)  TYPE c,            "nicht benutzt                3
+           END OF typ_objky_agbu_wr_item .
+
+
+
+  class-methods GET_DATA_WLF
+    importing
+      !IS_NAST type NAST
+      !IV_XSCREEN type BOOLE_D
+    exporting
+      !ES_LFA1 type LFA1
+      !ES_KNA1 type KNA1
+      !ES_T001 type T001
+      !ES_T024E type T024E
+      !ES_TVKO type TVKO
+      !ES_RECIPIENT type ADRS_PRINT
+      !ES_KOMLFK type KOMLFK
+      !ES_TMZR type TMZR
+      !ES_WBRK_D type WBRK_D
+      !ES_LFA1_D type LFA1
+      !ES_KNA1_D type KNA1
+      !ES_T024E_D type T024E
+      !ES_TVKO_D type TVKO
+      !ES_T001_D type T001
+      !ET_KOMV type TAB_KOMV
+      !ET_KOMK type WLF_KOMK_TAB
+      !ET_KOMP type WLF_KOMP_TAB
+      !ET_KOMLFK type KOMLFK_TAB
+      !ET_KOMLFP type KOMLFP_TAB
+      !ET_KOMLFL type KOMLFL_TABLE
+      !ET_KOMVD type KOMVD_ITAB
+      !ET_KOMV_D type TAB_KOMV
+      !ET_WBRP_D type WBRP_D_ITAB
+      !ET_ZTERM_TEXT type WLF_TTEXT80_TAB
+      !ET_ZTERM_TEXT_ORIG type WLF_TTEXT80_TAB
+      !ES_WCOCOH type WCOCOH
+      !ET_WCOCOI type WCB_WCOCOI_TAB
+      !ET_WCOCOF type WCB_WCOCOF_TAB
+    changing
+      !CV_RETCODE type SY-SUBRC .
+
+protected section.
+private section.
+ENDCLASS.
+
+
+
+CLASS YCL_SD_WLF IMPLEMENTATION.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method YCL_SD_WLF=>GET_DATA_WLF
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_NAST                        TYPE        NAST
+* | [--->] IV_XSCREEN                     TYPE        BOOLE_D
+* | [<---] ES_LFA1                        TYPE        LFA1
+* | [<---] ES_KNA1                        TYPE        KNA1
+* | [<---] ES_T001                        TYPE        T001
+* | [<---] ES_T024E                       TYPE        T024E
+* | [<---] ES_TVKO                        TYPE        TVKO
+* | [<---] ES_RECIPIENT                   TYPE        ADRS_PRINT
+* | [<---] ES_KOMLFK                      TYPE        KOMLFK
+* | [<---] ES_TMZR                        TYPE        TMZR
+* | [<---] ES_WBRK_D                      TYPE        WBRK_D
+* | [<---] ES_LFA1_D                      TYPE        LFA1
+* | [<---] ES_KNA1_D                      TYPE        KNA1
+* | [<---] ES_T024E_D                     TYPE        T024E
+* | [<---] ES_TVKO_D                      TYPE        TVKO
+* | [<---] ES_T001_D                      TYPE        T001
+* | [<---] ET_KOMV                        TYPE        TAB_KOMV
+* | [<---] ET_KOMK                        TYPE        WLF_KOMK_TAB
+* | [<---] ET_KOMP                        TYPE        WLF_KOMP_TAB
+* | [<---] ET_KOMLFK                      TYPE        KOMLFK_TAB
+* | [<---] ET_KOMLFP                      TYPE        KOMLFP_TAB
+* | [<---] ET_KOMLFL                      TYPE        KOMLFL_TABLE
+* | [<---] ET_KOMVD                       TYPE        KOMVD_ITAB
+* | [<---] ET_KOMV_D                      TYPE        TAB_KOMV
+* | [<---] ET_WBRP_D                      TYPE        WBRP_D_ITAB
+* | [<---] ET_ZTERM_TEXT                  TYPE        WLF_TTEXT80_TAB
+* | [<---] ET_ZTERM_TEXT_ORIG             TYPE        WLF_TTEXT80_TAB
+* | [<---] ES_WCOCOH                      TYPE        WCOCOH
+* | [<---] ET_WCOCOI                      TYPE        WCB_WCOCOI_TAB
+* | [<---] ET_WCOCOF                      TYPE        WCB_WCOCOF_TAB
+* | [<-->] CV_RETCODE                     TYPE        SY-SUBRC
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_data_wlf.
+
+    CONSTANTS: lc_reswk TYPE ekko-reswk VALUE IS INITIAL.
+
+*--- lokale Tabellen:                                               --*
+    DATA:
+*--- Preisfindung Kommunikations-Konditionssatz:                    --*
+      lt_komv TYPE STANDARD TABLE OF komv,
+*--- Preisfindung Kommunikations-Kopf:                              --*
+      lt_komk TYPE STANDARD TABLE OF komk ,
+*--- Preisfindung Kommunikations-Position:                          --*
+      lt_komp TYPE STANDARD TABLE OF komp,
+*--- Kommunikationsstruktur: Lieferantenfakturakopf:                --*
+      lt_komlfk TYPE STANDARD TABLE OF komlfk,
+*--- Lieferantenfaktura: Fakturapositionen:                         --*
+      lt_komlfp TYPE STANDARD TABLE OF komlfp,
+*--- Lieferantenfaktura: Kommunikationsstruktur Rechnungsliste:     --*
+      lt_komlfl TYPE STANDARD TABLE OF komlfl,
+*--- Fehlermeldungen:                                               --*
+      lt_error_messages TYPE STANDARD TABLE OF wlf1_error.
+
+*--- lokale Daten und Strukturen:                                   --*
+    DATA:
+*--- Feld zum Aufnehmen des Objektschlüssels des NAST-Satzes:       --*
+     ls_objky TYPE typ_objky_agbu_wr_head,
+*--- Kommunikationsstruktur: Lieferantenfakturakopf:                --*
+     ls_komlfk TYPE komlfk,
+*--- Lieferantenstamm (allgemeiner Teil):                           --*
+     ls_lfa1 TYPE lfa1,
+*--- Kundenstamm (allgemeiner Teil):                                --*
+     ls_kna1 TYPE kna1,
+*--- Buchungskreis:                                                 --*
+     ls_t001 TYPE t001,
+*--- Einkaufsorganisationen:                                        --*
+     ls_t024e TYPE t024e,
+*--- Org.-Einheit: Verkaufsorganisationen:                          --*
+     ls_tvko TYPE tvko,
+*--- Regulierungsart:                                               --*
+     ls_tmzr TYPE tmzr.
+
+*Rückgabe erstellen
+    DATA: ls_recipient        TYPE adrs_print.
+    DATA: ls_wbrk_d           TYPE wbrk_d    .
+    DATA: ls_lfa1_d           TYPE lfa1      .
+    DATA: ls_kna1_d           TYPE kna1      .
+    DATA: ls_t024e_d          TYPE t024e     .
+    DATA: ls_tvko_d           TYPE tvko      .
+    DATA: ls_t001_d           TYPE t001      .
+    DATA: lt_komvd            TYPE STANDARD TABLE OF komvd.
+    DATA: lt_komv_d           TYPE STANDARD TABLE OF komv.
+    DATA: lt_wbrp_d           TYPE STANDARD TABLE OF wbrp_d.
+    DATA: lt_wbrt_d           TYPE STANDARD TABLE OF wbrt_d.
+    DATA: lt_zterm_text      TYPE TABLE OF ttext80.
+    DATA: lt_zterm_text_orig TYPE TABLE OF ttext80.
+
+
+    DATA: lv_print_mwsk TYPE boole-boole.
+    DATA: ls_komk TYPE komk.
+
+
+    REFRESH: lt_komk, lt_komp, lt_komlfk, lt_komlfp, lt_komlfl,
+             lt_error_messages.
+
+* refresh only if not in dialogue processing
+    IF ( sy-cprog EQ 'RSNAST00' )
+    AND iv_xscreen EQ space.
+      CALL FUNCTION 'WLF_REGU_REFRESH'.
+    ENDIF.
+
+*--- Datenselektion: Lesen der Belegdaten:                          --*
+    ls_objky = is_nast-objky.
+
+
+*--- Datenermittlung über Funktionsbaustein:                        --*
+    CALL FUNCTION 'WLF_DOCUMENT_READ'
+      EXPORTING
+        i_wbeln             = ls_objky-wbeln
+        i_enqueue           = abap_true
+        i_komk_read         = abap_true
+      IMPORTING
+        e_komlfk            = ls_komlfk
+        e_lfa1              = ls_lfa1
+        e_kna1              = ls_kna1
+        e_t001              = ls_t001
+        e_t024e             = ls_t024e
+        e_tvko              = ls_tvko
+        e_tmzr              = ls_tmzr
+      TABLES
+        t_komv              = lt_komv
+        t_komk              = lt_komk
+        t_komp              = lt_komp
+        t_komlfk            = lt_komlfk     "Kopfdaten der einzelnen Vereinbarungen
+        t_komlfp            = lt_komlfp     "Positionsdaten
+        t_komlfl            = lt_komlfl
+      EXCEPTIONS
+        empty_parameter     = 1
+        no_record_found     = 2
+        faktura_data_error  = 3
+        regu_data_error     = 4
+        regulist_data_error = 5
+        relist_data_error   = 6
+        invalid_fakturaart  = 7
+        OTHERS              = 8.
+    IF sy-subrc <> 0.
+      cv_retcode = sy-subrc.
+    ENDIF.
+
+*--- Lesen und Aufbereiten der Adresse für den Druck:               --*
+    CALL FUNCTION 'WLF_GET_ADDRESS_IN_PRINTFORM'
+      EXPORTING
+        i_wbeln           = ls_objky-wbeln
+        i_data_to_lief    = abap_true
+        i_sender_country  = 'CH'
+        i_anzahl_zeilen   = '10'
+        i_vorrang_strasse = abap_false
+        i_lfa1            = ls_lfa1
+        i_kna1            = ls_kna1
+        i_nast            = is_nast
+      IMPORTING
+        e_adrs_print      = ls_recipient.
+
+*--- Lesen der Org- und Stammdaten und Übernahme in die Formular-   --*
+*--- struktur:                                                      --*
+    CALL FUNCTION 'WLF_GET_HEADER_DATA'
+      EXPORTING
+        i_komlfk          = ls_komlfk
+        i_lief_data       = abap_true
+        i_nast            = is_nast
+        i_tmzr            = ls_tmzr
+        i_lfa1            = ls_lfa1
+        i_kna1            = ls_kna1
+        i_t024e           = ls_t024e
+        i_tvko            = ls_tvko
+        i_t001            = ls_t001
+      IMPORTING
+        e_wbrk_d          = ls_wbrk_d
+        e_lfa1            = ls_lfa1_d
+        e_kna1            = ls_kna1_d
+        e_t024e           = ls_t024e_d
+        e_tvko            = ls_tvko_d
+        e_t001            = ls_t001_d
+      EXCEPTIONS
+        invalid_bukrs     = 1
+        invalid_kred_data = 2
+        invalid_deb_data  = 3
+        OTHERS            = 4.
+    IF sy-subrc <> 0.
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+*       RAISING invalid_master_data.
+    ENDIF.
+
+
+*--- Ermittlung der druckaufbereiteten Kopfkonditionen:             --*
+* data_to_lief --> always true because we use it for producers
+    IF abap_true = 'X'.
+      CALL FUNCTION 'WLF_GET_HEADER_PRICES_KRED'
+        EXPORTING
+          i_wbrk_d       = ls_wbrk_d
+        IMPORTING
+          e_wbrk_d       = ls_wbrk_d
+          e_komk         = ls_komk
+          e_print_mwskz  = lv_print_mwsk
+        TABLES
+          ti_komk        = lt_komk
+          ti_komv        = lt_komv
+          to_komv        = lt_komv_d
+          to_komvd       = lt_komvd
+        EXCEPTIONS
+          internal_error = 1
+          OTHERS         = 2.
+      IF sy-subrc <> 0.
+*      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+*         RAISING internal_error.
+      ENDIF.
+    ELSE.
+      CALL FUNCTION 'WLF_GET_HEADER_PRICES_DEB'
+        EXPORTING
+          i_wbrk_d       = ls_wbrk_d
+        IMPORTING
+          e_wbrk_d       = ls_wbrk_d
+          e_komk         = ls_komk
+          e_print_mwskz  = lv_print_mwsk
+        TABLES
+          ti_komk        = lt_komk
+          ti_komv        = lt_komv
+          to_komv        = lt_komv_d
+          to_komvd       = lt_komvd
+        EXCEPTIONS
+          internal_error = 1
+          OTHERS         = 2.
+      IF sy-subrc <> 0.
+*      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+*         RAISING internal_error.
+      ENDIF.
+    ENDIF.
+
+    APPEND LINES OF lt_komvd TO et_komvd.
+
+*--- Ermittlung der Positionsdaten:                                --*
+    CALL FUNCTION 'WLF_GET_SINGLE_ITEM_DATA'
+      EXPORTING
+        i_wbrk_d = ls_wbrk_d
+      IMPORTING
+        e_wbrk_d = ls_wbrk_d
+      TABLES
+        t_komlfp = lt_komlfp
+        t_wbrp_d = lt_wbrp_d
+        t_wbrt_d = lt_wbrt_d.
+
+*&---------------------------------------------------------------------*
+*       Ermittlung der sofort wirksamen Rechnungslistenkonditionswerte *
+*----------------------------------------------------------------------*
+* data_to_lief --> always true because we use it for producers
+    IF abap_true = 'X'.
+      CALL FUNCTION 'WLF_GET_KOA_VALUE_KRED'
+        EXPORTING
+          i_wbrk_d = ls_wbrk_d
+        IMPORTING
+          e_wbrk_d = ls_wbrk_d
+        TABLES
+          t_komv   = lt_komv
+          t_wbrp_d = lt_wbrp_d
+          t_wbrt_d = lt_wbrt_d.
+    ELSE.
+      CALL FUNCTION 'WLF_GET_KOA_VALUE_DEB'
+        EXPORTING
+          i_wbrk_d = ls_wbrk_d
+        IMPORTING
+          e_wbrk_d = ls_wbrk_d
+        TABLES
+          t_komv   = lt_komv
+          t_wbrp_d = lt_wbrp_d
+          t_wbrt_d = lt_wbrt_d.
+    ENDIF.
+
+*--- Ermittlung der druckaufbereiteten Zahlungsbedingungen:        --*
+    CALL FUNCTION 'WLF_ZTERM_FOR_PRINT'
+      EXPORTING
+        i_komlfk         = ls_komlfk
+        i_wbrk_d         = ls_wbrk_d
+        i_tmzr           = ls_tmzr
+      IMPORTING
+        e_wbrk_d         = ls_wbrk_d
+      TABLES
+        t_ttext          = lt_zterm_text
+        t_ttext_original = lt_zterm_text_orig
+      EXCEPTIONS
+        zterm_not_found  = 1
+        OTHERS           = 2.
+    IF sy-subrc <> 0.
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+*       RAISING terms_of_payment_not_in_t052.
+    ENDIF.
+
+*--- Ermittlung der druckaufbereiteten Positionskonditionen:       --*
+    CALL FUNCTION 'WLF_GET_SINGLE_ITEM_PRICES'
+      EXPORTING
+        i_wbrk_d  = ls_wbrk_d
+        i_komk    = ls_komk
+      IMPORTING
+        e_wbrk_d  = ls_wbrk_d
+        e_komk    = ls_komk
+      TABLES
+        tx_komv   = lt_komv
+        tx_komp   = lt_komp
+        tx_wbrp_d = lt_wbrp_d
+        to_komvd  = lt_komvd.
+
+*       Umrechnung der detaillierten Werte in EURO                     *
+    CALL FUNCTION 'WLF_ALL_DETAILED_VAL_IN_EURO'
+      EXPORTING
+        i_wbrk_d = ls_wbrk_d
+        i_komk   = ls_komk
+      IMPORTING
+        e_wbrk_d = ls_wbrk_d
+      TABLES
+        t_wbrt_d = lt_wbrt_d.
+
+* Lieferantendaten
+    DATA: lv_telefto TYPE t005k-telefto.
+    SELECT SINGLE telefto FROM t005k INTO lv_telefto WHERE land1 = ls_lfa1-LAND1.
+    "Tel
+    IF sy-subrc = 0 AND lv_telefto IS NOT INITIAL.
+      CONCATENATE '+' lv_telefto INTO lv_telefto.
+      IF ls_lfa1-telf1(1) = '0'.
+        CONCATENATE lv_telefto ls_lfa1-telf1+1 INTO ls_lfa1-telf1 SEPARATED BY space.
+      ELSE.
+        CONCATENATE lv_telefto ls_lfa1-telf1 INTO ls_lfa1-telf1 SEPARATED BY space.
+      ENDIF.
+    ENDIF.
+    "FAx
+    IF ls_lfa1-telfx IS NOT INITIAL
+      AND lv_telefto IS NOT INITIAL.
+      IF ls_lfa1-telfx(1) = '0'.
+        CONCATENATE lv_telefto ls_lfa1-telfx+1 INTO ls_lfa1-telfx SEPARATED BY space.
+      ELSE.
+        CONCATENATE lv_telefto ls_lfa1-telfx INTO ls_lfa1-telfx SEPARATED BY space.
+      ENDIF.
+    ENDIF.
+
+    "EMAIL
+*    SELECT SINGLE SMTP_ADDR INTO ls_lfa1-smtp_addr
+*         FROM adr6 WHERE addrnumber = ls_lfa1-adrnr
+*                     AND persnumber = space.
+
+**********************************************************************
+* Fill the export-structures
+**********************************************************************
+    es_lfa1              = ls_lfa1              .
+    es_kna1              = ls_kna1              .
+    es_t001              = ls_t001              .
+    es_t024e             = ls_t024e             .
+    es_tvko              = ls_tvko              .
+    es_recipient         = ls_recipient         .
+    es_komlfk            = ls_komlfk            .
+    es_tmzr              = ls_tmzr              .
+    es_wbrk_d            = ls_wbrk_d            .
+    es_lfa1_d            = ls_lfa1_d            .
+    es_kna1_d            = ls_kna1_d            .
+    es_t024e_d           = ls_t024e_d           .
+    es_tvko_d            = ls_tvko_d            .
+    es_t001_d            = ls_t001_d            .
+    et_komv              = lt_komv              .
+    et_komk              = lt_komk              .
+    et_komp              = lt_komp              .
+    et_komlfk            = lt_komlfk            .
+    et_komlfp            = lt_komlfp            .
+    et_komlfl            = lt_komlfl            .
+    APPEND LINES OF lt_komvd TO et_komvd.
+*   et_komvd             = lt_komvd             .
+    et_komv_d            = lt_komv_d            .
+    et_wbrp_d            = lt_wbrp_d            .
+    et_zterm_text        = lt_zterm_text        .
+    et_zterm_text_orig   = lt_zterm_text_orig   .
+
+
+
+  ENDMETHOD.
+ENDCLASS.

@@ -1,0 +1,491 @@
+*&---------------------------------------------------------------------*
+*& Report  YSD_PRINT_WLF
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+REPORT ysd_print_wlf.
+
+
+TYPE-POOLS: szadr.
+
+*Necessary Includes for Sending-purpose
+INCLUDE: rvadtabl.
+DATA: retcode   LIKE sy-subrc.         "Returncode
+DATA: repeat(1) TYPE c.
+DATA: xscreen(1) TYPE c.               "Output on printer or screen
+
+DATA: gv_vbeln TYPE char10,
+      gv_parnr TYPE char10.
+
+DATA: gv_receiver            TYPE ad_smtpadr,
+      gv_receiver_tdtelenum  TYPE sktelnr,
+      gv_receiver_tdteleland TYPE land1,
+      lv_fm_name             TYPE rs38l_fnam.
+
+INCLUDE fp_utilities.                   " general utilities
+
+
+DATA : output_options     TYPE ssfcompop,
+       control_parameters TYPE  ssfctrlop.
+
+*&---------------------------------------------------------------------*
+*&      Form  entry
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->RETURN_CODE  text
+*      -->US_SCREEN    text
+*----------------------------------------------------------------------*
+FORM entry USING return_code TYPE i
+                 us_screen TYPE c.
+
+*  MESSAGE text-001 TYPE 'S'.    " Meldung ausgeben, dass es ein wenig dauern kann
+
+  CLEAR retcode.
+  xscreen = us_screen.
+  PERFORM processing_nast.
+  IF retcode NE 0.
+    return_code = 1.
+  ELSE.
+    return_code = 0.
+  ENDIF.
+
+ENDFORM.                    "ENTRY
+*&---------------------------------------------------------------------*
+*&      Form  PROCESSING_NAST
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM processing_nast .
+
+* Formvariables
+  DATA: ls_fpformoutput     TYPE fpformoutput.    " Form Output
+  DATA: lv_fp_outputparams  TYPE  sfpoutputparams.
+
+  DATA:
+    ls_result TYPE sfpjoboutput,
+    lv_memid  TYPE c LENGTH 60.
+
+*businessvariables
+  DATA: ls_lfa1	            TYPE lfa1              .
+  DATA: ls_kna1	            TYPE kna1              .
+  DATA: ls_t001	            TYPE t001              .
+  DATA: ls_t024e            TYPE t024e             .
+  DATA: ls_tvko	            TYPE tvko              .
+  DATA: ls_recipient        TYPE adrs_print        .
+  DATA: ls_komlfk	          TYPE komlfk            .
+  DATA: ls_tmzr	            TYPE tmzr              .
+  DATA: ls_wbrk_d	          TYPE wbrk_d            .
+  DATA: ls_lfa1_d	          TYPE lfa1              .
+  DATA: ls_kna1_d	          TYPE kna1              .
+  DATA: ls_t024e_d          TYPE t024e             .
+  DATA: ls_tvko_d	          TYPE tvko              .
+  DATA: ls_t001_d	          TYPE t001              .
+  DATA: lt_komv	            TYPE tab_komv          .
+  DATA: lt_komk             TYPE wlf_komk_tab      .
+  DATA: lt_komp	            TYPE wlf_komp_tab      .
+  DATA: lt_komlfk	          TYPE komlfk_tab        .
+  DATA: lt_komlfp	          TYPE komlfp_tab        .
+  DATA: lt_komlfl	          TYPE komlfl_table      .
+  DATA: lt_komvd            TYPE komvd_itab        .
+  DATA: lt_komv_d	          TYPE tab_komv          .
+  DATA: lt_wbrp_d	          TYPE wbrp_d_itab       .
+  DATA: lt_zterm_text	      TYPE wlf_ttext80_tab   .
+  DATA: lt_zterm_text_orig  TYPE wlf_ttext80_tab   .
+
+
+  CALL METHOD ycl_sd_wlf=>get_data_wlf
+    EXPORTING
+      is_nast            = nast
+      iv_xscreen         = xscreen
+    IMPORTING
+      es_lfa1            = ls_lfa1
+      es_kna1            = ls_kna1
+      es_t001            = ls_t001
+      es_t024e           = ls_t024e
+      es_tvko            = ls_tvko
+      es_recipient       = ls_recipient  "
+      es_komlfk          = ls_komlfk
+      es_tmzr            = ls_tmzr
+      es_wbrk_d          = ls_wbrk_d
+      es_lfa1_d          = ls_lfa1_d
+      es_kna1_d          = ls_kna1_d
+      es_t024e_d         = ls_t024e_d
+      es_tvko_d          = ls_tvko_d
+      es_t001_d          = ls_t001_d
+      et_komv            = lt_komv
+      et_komk            = lt_komk
+      et_komp            = lt_komp
+      et_komlfk          = lt_komlfk
+      et_komlfp          = lt_komlfp
+      et_komlfl          = lt_komlfl
+      et_komvd           = lt_komvd
+      et_komv_d          = lt_komv_d
+      et_wbrp_d          = lt_wbrp_d
+      et_zterm_text      = lt_zterm_text
+      et_zterm_text_orig = lt_zterm_text_orig
+    CHANGING
+      cv_retcode         = retcode.
+
+
+  IF retcode IS INITIAL.
+
+* fill address key --> necessary for emails
+    addr_key-addrnumber = ls_lfa1-adrnr.
+*  addr_key-persnumber = vbdka-adrnp.
+*  addr_key-addr_type  = vbdka-address_type.
+    addr_key-addr_type  = '1'.
+
+    PERFORM fill_outputparams USING    itcpo
+                              CHANGING lv_fp_outputparams.
+
+* This perform will fill all the print parameters for the form
+    PERFORM fill_itcpo USING xscreen 'DE'.
+
+    PERFORM print_smartforms USING    tnapr-sform
+                                      LS_WBRK_D
+                                      ls_lfa1_d
+                                      lt_komlfk
+                                      lt_komlfp
+                                      lt_komvd
+                                      lt_zterm_text
+                                      ls_t024e_d
+                             CHANGING retcode.
+  ENDIF.
+
+ENDFORM.                    " PROCESSING_NAST
+*&---------------------------------------------------------------------*
+*&      Form  fill_itcpo
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_itcpo USING us_screen TYPE c
+                     us_country TYPE c.
+  FIELD-SYMBOLS: <lf_receiver>    TYPE any.
+  DATA: lvs_itcpo       TYPE   itcpo,
+        lvf_device      TYPE   tddevice,
+        lvf_dialog(1)   TYPE   c   VALUE ' ',
+        lvs_recipient   LIKE   swotobjid,
+        lvs_sender      LIKE   swotobjid,
+        lvs_snast       TYPE   snast,
+        lvf_program     LIKE   sy-repid,
+        lvs_comm_type   TYPE   ad_comm,
+        lvs_comm_values TYPE   szadr_comm_values.
+
+
+* reset return code
+  retcode = 0.
+
+  IF xscreen = abap_true.
+    nast-nacha = '1'.
+    lvs_itcpo-tdpreview = xscreen.
+    IF nast-ldest IS INITIAL.
+      nast-ldest = 'LOCL'.
+    ENDIF.
+  ENDIF.
+
+
+* if there is a communication strategy used ...
+  IF NOT nast-tcode IS INITIAL AND nast-nacha EQ '5'.
+
+*   ... use stratagy to get communication type
+    CALL FUNCTION 'ADDR_GET_NEXT_COMM_TYPE'
+      EXPORTING
+        strategy           = nast-tcode
+*       ADDRESS_TYPE       =
+*       ADDRESS_NUMBER     = VBDKA-ADRNR
+*       PERSON_NUMBER      = VBDKA-ADRNP
+        address_number     = addr_key-addrnumber
+        person_number      = addr_key-persnumber
+      IMPORTING
+        comm_type          = lvs_comm_type
+        comm_values        = lvs_comm_values
+*        TABLES
+*       STRATEGY_TABLE     =
+      EXCEPTIONS
+        address_not_exist  = 1
+        person_not_exist   = 2
+        no_comm_type_found = 3
+        internal_error     = 4
+        parameter_error    = 5
+        OTHERS             = 6.
+    IF sy-subrc <> 0.
+      retcode = sy-subrc.
+      syst-msgty = 'E'.
+    ENDIF.
+
+  ENDIF.
+
+
+* convert communication data
+  MOVE-CORRESPONDING nast TO lvs_snast.
+  MOVE sy-repid           TO lvf_program.
+  CALL FUNCTION 'CONVERT_COMM_TYPE_DATA'
+    EXPORTING
+      pi_comm_type              = lvs_comm_type
+      pi_comm_values            = lvs_comm_values
+      pi_screen                 = us_screen
+*     PI_NEWID                  =
+      pi_country                = us_country
+      pi_repid                  = lvf_program
+      pi_snast                  = lvs_snast
+    IMPORTING
+      pe_itcpo                  = lvs_itcpo
+      pe_device                 = lvf_device
+      pe_mail_recipient         = lvs_recipient
+      pe_mail_sender            = lvs_sender
+    EXCEPTIONS
+      comm_type_not_supported   = 1
+      recipient_creation_failed = 2
+      sender_creation_failed    = 3
+      OTHERS                    = 4.
+  IF sy-subrc <> 0.
+    retcode = sy-subrc.
+    syst-msgty = 'E'.
+  ENDIF.
+
+  CHECK retcode EQ 0.
+
+* if there is no communication type
+  IF  lvs_comm_type IS INITIAL.
+*   set device
+    CASE nast-nacha.
+      WHEN '1'.
+        lvf_device = 'PRINTER'.
+      WHEN '2'.
+        lvf_device = 'TELEFAX'.
+        lvs_itcpo-tdtelenum = nast-telfx.
+        gv_receiver_tdtelenum = lvs_itcpo-tdtelenum.
+        IF nast-tland IS INITIAL.
+          lvs_itcpo-tdteleland = us_country.
+          gv_receiver_tdteleland = us_country.
+        ELSE.
+          lvs_itcpo-tdteleland = nast-tland.
+          gv_receiver_tdteleland = lvs_itcpo-tdteleland.
+        ENDIF.
+        lvs_itcpo-tdsenddate = nast-vsdat.
+        lvs_itcpo-tdsendtime = nast-vsura.
+        lvs_itcpo-tdfaxuser  = nast-usnam.
+      WHEN '3'.
+        lvf_device = 'TELETEX'.
+        lvs_itcpo-tdtelenum = nast-teltx.
+        IF nast-tland IS INITIAL.
+          lvs_itcpo-tdteleland = us_country.
+        ELSE.
+          lvs_itcpo-tdteleland = nast-tland.
+        ENDIF.
+        lvs_itcpo-tdsenddate = nast-vsdat.
+        lvs_itcpo-tdsendtime = nast-vsura.
+      WHEN '4'.
+        lvf_device = 'TELEX'.
+        lvs_itcpo-tdtelenum = nast-telx1.
+        IF nast-tland IS INITIAL.
+          lvs_itcpo-tdteleland = us_country.
+        ELSE.
+          lvs_itcpo-tdteleland = nast-tland.
+        ENDIF.
+        lvs_itcpo-tdsenddate = nast-vsdat.
+        lvs_itcpo-tdsendtime = nast-vsura.
+      WHEN OTHERS.
+        lvf_device = 'PRINTER'.
+    ENDCASE.
+  ENDIF.
+
+  lvs_itcpo-tdnewid = 'X'.
+  lvs_itcpo-tdfinal = 'X'.
+
+* fill structure itcpo
+  itcpo = lvs_itcpo.
+
+  CALL FUNCTION 'SSF_MAP_ITCPO_TO_SFOPTIONS'
+    EXPORTING
+      i_itcpo              = itcpo
+      i_device             = lvf_device
+    IMPORTING
+      e_output_options     = output_options
+      e_control_parameters = control_parameters.
+
+* Never show an dialog-screen
+  control_parameters-no_dialog = abap_true.
+
+
+ENDFORM.                    "fill_itcpo
+*&---------------------------------------------------------------------*
+*&      Form  fill_outputparams
+*&---------------------------------------------------------------------*
+*This form will fill all the print parameters for the form            *
+*---------------------------------------------------------------------*
+*  -->  I_PRINT_OPTS                                                  *
+*  <->  fp_OUTPUTPARAMS
+*----------------------------------------------------------------------*
+FORM fill_outputparams  USING  is_itcpo TYPE itcpo
+                        CHANGING xs_outputparams TYPE sfpoutputparams.
+
+
+  DATA:
+    lv_title    TYPE so_obj_des.
+
+  IF nast-tdcovtitle(66) IS INITIAL.
+
+    CLEAR:  gv_vbeln.
+    WRITE nast-objky TO gv_vbeln NO-ZERO.
+    SHIFT gv_vbeln LEFT DELETING LEADING space.
+
+    CLEAR:  lv_title.
+    SELECT SINGLE objdes
+      FROM tnati
+      INTO lv_title
+      WHERE kschl   = nast-kschl
+      AND   kappl   = nast-kappl
+      AND   spras   = nast-spras.
+
+    IF sy-subrc = 0.
+      CONCATENATE gv_vbeln nast-parvw lv_title INTO nast-tdcovtitle
+               SEPARATED BY space.
+    ENDIF.
+
+
+  ENDIF.
+
+
+
+
+ENDFORM.                    " fill_outputparams
+FORM print_smartforms USING      pv_fonam       TYPE tdsfname
+                                 ps_wbrk_d      TYPE wbrk_d
+                                 ps_lfa1_d      TYPE lfa1
+                                 pt_komlfk      TYPE komlfk_tab
+                                 pt_komlfp      TYPE komlfp_tab
+                                 pt_komvd       TYPE komvd_itab
+                                 pt_zterm_text  TYPE wlf_ttext80_tab
+                                 ps_t024e_d     TYPE t024e
+                        CHANGING pv_subrc       TYPE syst-subrc.
+
+*Daten für SF-Handling
+  DATA: lv_smfuba   TYPE rs38l_fnam,
+        lt_sferrors TYPE tsferror,
+        ls_error    LIKE LINE OF lt_sferrors,
+        lv_message  TYPE string.                            "#EC NEEDED
+
+
+
+* Ermittelt (generierten) FuBa-Namen
+  CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+    EXPORTING
+      formname           = pv_fonam
+    IMPORTING
+      fm_name            = lv_smfuba
+    EXCEPTIONS
+      no_form            = 1
+      no_function_module = 2
+      OTHERS             = 3.
+
+
+*LS_LFA1_D
+*LT_KOMLFK
+*LT_KOMLFP
+*LT_KOMVD
+*LT_ZTERM_TEXT
+*LS_T024E_D
+*NAST
+
+* FuBa gefunden?
+  IF sy-subrc EQ 0.
+
+
+    CALL FUNCTION lv_smfuba
+      EXPORTING
+*       ARCHIVE_INDEX      =
+*       ARCHIVE_INDEX_TAB  =
+*       ARCHIVE_PARAMETERS =
+        control_parameters = control_parameters
+*       MAIL_APPL_OBJ      =
+*       MAIL_RECIPIENT     =
+*       MAIL_SENDER        =
+        output_options     = output_options
+        user_settings      = abap_false
+        is_wbrk_d          = ps_wbrk_d
+        is_lfa1_d          = ps_lfa1_d
+        it_komlfk          = pt_komlfk
+        it_komlfp          = pt_komlfp
+        it_komvd           = pt_komvd
+        it_zterm_text      = pt_zterm_text
+        is_t024e_d         = ps_t024e_d
+        is_nast            = nast
+* IMPORTING
+*       DOCUMENT_OUTPUT_INFO       =
+*       JOB_OUTPUT_INFO    =
+*       JOB_OUTPUT_OPTIONS =
+      EXCEPTIONS
+        formatting_error   = 1
+        internal_error     = 2
+        send_error         = 3
+        user_canceled      = 4
+        OTHERS             = 5.
+
+*   Error handling macht immer Sinn - Infos über Fehler rausgeben
+    IF sy-subrc NE 0 AND sy-subrc NE 4.
+
+      CALL FUNCTION 'SSF_READ_ERRORS'
+        IMPORTING
+          errortab = lt_sferrors.
+
+      LOOP AT lt_sferrors INTO ls_error.
+
+*1.     In lokale Variable, z.B. zum Lesen im Debugger
+        MESSAGE ID ls_error-msgid TYPE ls_error-msgty
+                NUMBER ls_error-msgno
+                WITH ls_error-msgv1 ls_error-msgv2
+                     ls_error-msgv3 ls_error-msgv4
+              INTO lv_message.
+
+* 2     Die Fehlermeldung an den Aufrufer Propagieren
+        MESSAGE ID ls_error-msgid TYPE ls_error-msgty
+                NUMBER ls_error-msgno
+                WITH ls_error-msgv1 ls_error-msgv2
+                     ls_error-msgv3 ls_error-msgv4
+               RAISING exc_sf_error.
+* 2.1 Alternativ die Fehler ins Protokoll schreiben
+*        PERFORM protocol_update.
+      ENDLOOP.
+    ENDIF.
+
+  ELSE.
+
+    MESSAGE ID sy-msgid TYPE sy-msgty
+            NUMBER sy-msgno
+            WITH sy-msgv1   sy-msgv2
+                 sy-msgv3   sy-msgv4
+           RAISING exc_sf_error.
+
+  ENDIF.
+
+*wenn wir hier sind: ok!
+  pv_subrc = 0.
+
+
+ENDFORM.                    " PRINT_SMARTFORMS
+FORM protocol_update.
+
+  CHECK xscreen = space.
+  CALL FUNCTION 'NAST_PROTOCOL_UPDATE'
+    EXPORTING
+      msg_arbgb = syst-msgid
+      msg_nr    = syst-msgno
+      msg_ty    = syst-msgty
+      msg_v1    = syst-msgv1
+      msg_v2    = syst-msgv2
+      msg_v3    = syst-msgv3
+      msg_v4    = syst-msgv4
+    EXCEPTIONS
+      OTHERS    = 1.
+
+ENDFORM.                    "PROTOCOL_UPDATE
